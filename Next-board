@@ -38,7 +38,7 @@ int main() {
 
     memcpy(s_base[0], initial_board, sizeof(int) * 9);
 
-    int current_player = 2; // 現在の手番 (1:〇, 2:×)
+    int current_player = 1; // 現在の手番 (1:〇, 2:×)
 
     // 移動盤面の生成
     generate_moved_boards(s_base, m_base, &s_count, &m_count, current_player);
