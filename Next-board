@@ -1,0 +1,270 @@
+#include <stdio.h>
+#include <string.h>
+
+// プロトタイプ宣言
+void graph(int board[3][3], int index);
+void generate_moved_boards(int s_base[1000][3][3], int m_base[1000][3][3], int* s_count, int* m_count, int current_player);
+void generate_added_boards(int m_base[1000][3][3], int a_base[1000][3][3], int* m_count, int* a_count, int current_player);
+void eliminate_duplicates(int a_base[1000][3][3], int c_base[1000][3][3], int* a_count, int* c_count);
+void generate_rotated_boards(int c_base[1000][3][3], int r_base[1000][3][3], int* c_count, int* r_count);
+void rotate_board_clockwise(int board[3][3]);
+void rotate_board_clockwise2(int board[3][3]);
+void rotate_board_clock1(int board[3][3]); // 90度回転
+void rotate_board_clock2(int board[3][3]); // 180度回転
+void rotate_board_clock3(int board[3][3]); // 270度回転
+void rotate_board_tarn(int source[3][3], int target[3][3]); // 反転
+void reset_boards(int m_base[1000][3][3], int a_base[1000][3][3], int c_base[1000][3][3], int r_base[1000][3][3], int* m_count, int* a_count, int* c_count, int* r_count);
+void move_rotated_to_initial(int r_base[1000][3][3], int s_base[1000][3][3], int* s_count, int r_count);
+
+int main() {
+    int i,j;
+    int match_found = 0;
+    // 盤面定義
+    int s_base[1000][3][3] = { 0 }; // 初期盤面
+    int m_base[1000][3][3] = { 0 }; // 移動盤面
+    int a_base[1000][3][3] = { 0 }; // 追加盤面
+    int c_base[1000][3][3] = { 0 }; // 重複盤面
+    int r_base[1000][3][3] = { 0 }; // 回転盤面
+
+    // カウント
+    int s_count = 1, m_count = 0, a_count = 0, c_count = 0, r_count = 0;
+
+    // 初期盤面を設定
+    int initial_board[3][3] = {
+        {0, 0, 0},
+        {0, 0, 0},
+        {0, 0, 0}
+    };
+
+    memcpy(s_base[0], initial_board, sizeof(int) * 9);
+
+    int current_player = 2; // 現在の手番 (1:〇, 2:×)
+
+    // 移動盤面の生成
+    generate_moved_boards(s_base, m_base, &s_count, &m_count, current_player);
+
+    // 追加盤面の生成
+    generate_added_boards(m_base, a_base, &m_count, &a_count, current_player);
+
+    // 重複盤面のチェックと登録
+    eliminate_duplicates(a_base, c_base, &a_count, &c_count);
+
+    // 回転盤面の生成（ここでのみ盤面を表示）
+    printf("\n=== 回転盤面 ===\n");
+    generate_rotated_boards(c_base, r_base, &c_count, &r_count);
+
+    // 回転盤面のデータを初期盤面に移す
+    move_rotated_to_initial(r_base, s_base, &s_count, r_count);
+
+
+    //目的盤面を設定
+    int mokuteki[3][3] = {
+    {0, 0, 0},
+    {0, 1, 0},
+    {0, 0, 0}
+    };
+    int moku[3][3] = { 0 };
+
+    memcpy(moku, mokuteki, sizeof(int) * 9);
+
+    for (int i = 0; i < 2; i++) {
+        if (i == 1) {
+            rotate_board_tarn(moku, mokuteki); // 上下反転または左右反転
+        }
+
+        for (int j = 0; j < 4; j++) {
+            if (j != 0) {
+                rotate_board_clockwise2(mokuteki); // 時計回り90度回転
+            }
+           
+            // c_base の盤面と比較
+            for (int k = 0; k < 1000; k++) {
+                if (memcmp(r_base[k], mokuteki, sizeof(int) * 9) == 0) {
+                    printf("一致する配列が見つかりました:r_base[%d]\n", k+1);
+                }
+            }
+        }
+    }
+
+
+
+
+    return 0;
+}
+
+// 盤面を表示
+void graph(int board[3][3], int index) {
+
+
+
+
+    printf("=== %d番目の盤面 ===\n", index);
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            switch (board[y][x]) {
+            case 0: printf("　|"); break; // 全角スペース
+            case 1: printf("〇|"); break;
+            case 2: printf("X |"); break; // 全角✕
+            }
+        }
+        printf("\n");
+    }
+}
+
+// 移動盤面を生成（表示しない）
+void generate_moved_boards(int s_base[1000][3][3], int m_base[1000][3][3], int* s_count, int* m_count, int current_player) {
+    int directions[4][2] = { {0, -1}, {1, 0}, {0, 1}, {-1, 0} };
+    int opponent = (current_player == 1) ? 2 : 1;
+
+    // 初期盤面をそのまま挿入
+    memcpy(m_base[*m_count], s_base[0], sizeof(int) * 9);
+    (*m_count)++;
+
+    // 相手の駒を移動させた盤面を生成
+    for (int i = 0; i < *s_count; i++) {
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                if (s_base[i][y][x] == opponent) {
+                    for (int d = 0; d < 4; d++) {
+                        int ny = y + directions[d][0];
+                        int nx = x + directions[d][1];
+                        if (ny >= 0 && ny < 3 && nx >= 0 && nx < 3 && s_base[i][ny][nx] == 0) {
+                            memcpy(m_base[*m_count], s_base[i], sizeof(int) * 9);
+                            m_base[*m_count][y][x] = 0;
+                            m_base[*m_count][ny][nx] = opponent;
+                            (*m_count)++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 追加盤面を生成（表示しない）
+void generate_added_boards(int m_base[1000][3][3], int a_base[1000][3][3], int* m_count, int* a_count, int current_player) {
+    for (int i = 0; i < *m_count; i++) {
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                if (m_base[i][y][x] == 0) {
+                    memcpy(a_base[*a_count], m_base[i], sizeof(int) * 9);
+                    a_base[*a_count][y][x] = current_player;
+                    (*a_count)++;
+                }
+            }
+        }
+    }
+}
+
+
+// 重複盤面を排除（表示しない）
+void eliminate_duplicates(int a_base[1000][3][3], int c_base[1000][3][3], int* a_count, int* c_count) {
+    int temp_board[3][3]; // 一時的に使用する盤面
+    int rotated_board[3][3]; // 回転用の盤面
+    int rot[3][3];
+    int c = 0, siz = 0, jj = 0;
+    for (int i = 0; i < *a_count; i++) {
+        int is_duplicate = 0;
+
+        // オリジナルの盤面と反転盤面をチェック
+        for (int flip = 0; flip < 2; flip++) {
+
+            if (flip == 0) {
+                memcpy(temp_board, a_base[i], sizeof(int) * 9); // オリジナル
+            }
+            else {
+                rotate_board_tarn(a_base[i], temp_board); // 反転
+            }
+
+            // オリジナルまたは反転盤面を90, 180, 270度回転して確認
+            memcpy(rotated_board, temp_board, sizeof(int) * 9);
+            for (int rotation = 0; rotation < 4; rotation++) {
+                if (rotation > 0) {
+                    rotate_board_clockwise2(rotated_board);
+                }
+
+                // すでにc_baseに存在するかチェック
+                for (int j = 0; j < *c_count; j++) {
+                    if (memcmp(rotated_board, c_base[j], sizeof(int) * 9) == 0) {
+                     is_duplicate = 1;
+                     jj = j;
+                        break;
+                        
+
+                    }
+                }
+                if (is_duplicate) break;
+            }
+            if (is_duplicate) break;
+        }
+
+        // 重複がなければc_baseに追加
+        if (!is_duplicate) {
+            memcpy(c_base[*c_count], a_base[i], sizeof(int) * 9);
+            (*c_count)++;
+        }
+
+    }
+}
+
+
+
+// 回転盤面を生成（ここで表示）
+void generate_rotated_boards(int c_base[1000][3][3], int r_base[1000][3][3], int* c_count, int* r_count) {
+    for (int i = 0; i < *c_count; i++) {
+        memcpy(r_base[*r_count], c_base[i], sizeof(int) * 9);
+        rotate_board_clockwise(r_base[*r_count]);
+        graph(r_base[*r_count], *r_count + 1);
+        (*r_count)++;
+    }
+}
+
+// 盤面を時計回りに回転
+void rotate_board_clockwise(int board[3][3]) {
+    int temp = board[0][0];
+    board[0][0] = board[1][0];
+    board[1][0] = board[2][0];
+    board[2][0] = board[2][1];
+    board[2][1] = board[2][2];
+    board[2][2] = board[1][2];
+    board[1][2] = board[0][2];
+    board[0][2] = board[0][1];
+    board[0][1] = temp;
+}
+
+void rotate_board_clockwise2(int board[3][3]) {
+    int temp[3][3];
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            temp[x][2 - y] = board[y][x];
+        }
+    }
+    memcpy(board, temp, sizeof(int) * 9);
+}
+
+
+// 初期盤面以外のデータをリセット
+void reset_boards(int m_base[1000][3][3], int a_base[1000][3][3], int c_base[1000][3][3], int r_base[1000][3][3], int* m_count, int* a_count, int* c_count, int* r_count) {
+    memset(m_base, 0, sizeof(int) * 1000 * 3 * 3);
+    memset(a_base, 0, sizeof(int) * 1000 * 3 * 3);
+    memset(c_base, 0, sizeof(int) * 1000 * 3 * 3);
+    memset(r_base, 0, sizeof(int) * 1000 * 3 * 3);
+    *m_count = 0;
+    *a_count = 0;
+    *c_count = 0;
+    *r_count = 0;
+}
+
+// 回転盤面のデータを初期盤面に移す
+void move_rotated_to_initial(int r_base[1000][3][3], int s_base[1000][3][3], int* s_count, int r_count) {
+    memcpy(s_base, r_base, sizeof(int) * r_count * 3 * 3);
+    *s_count = r_count;
+}
+
+void rotate_board_tarn(int source[3][3], int target[3][3]) {
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            target[y][x] = source[2 - y][x]; // 縦方向に反転
+        }
+    }
+}
